@@ -123,6 +123,10 @@ allocproc(void)
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  #ifdef CS333_P1
+  p -> start_ticks = ticks;
+  #endif
+
   return p;
 }
 
@@ -531,6 +535,18 @@ procdump(void)
   char *state;
   uint pc[10];
 
+  #if defined(CS333_P3P4)
+  #define HEADER "\nPID\tName    UID\tGID\tPPID\tPrio\tElapsed\tCPU\tState\tSize\t PCs\n"
+  #elif defined(CS333_P2)
+  #define HEADER "\nPID\tName    UID\tGID\tPPID\tElapsed\tCPU\tState\tSize\t PCs\n"
+  #elif defined(CS333_P1)
+  #define HEADER "\nPID\tName    Elapsed\tState\tSize\t PCs\n"
+  #else
+  #define HEADER "\n"
+  #endif
+
+  cprintf(HEADER);
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -538,7 +554,16 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
+  #if defined(CS333_P3P4)
+    procdumpP3P4(p, state);
+  #elif defined(CS333_P2)
+    procdumpP2(p, state);
+  #elif defined(CS333_P1)
+    procdumpP1(p, state);
+  #else
     cprintf("%d\t%s\t%s\t", p->pid, p->name, state);
+  #endif
+
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -547,3 +572,26 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+#ifdef CS333_P1
+void
+procdumpP1(struct proc *p, char *state)
+{
+  int seconds;
+  int milisec; 
+
+  // Put equation for ticks here to make it into seconds
+  seconds = ticks - p->start_ticks;     // Find the Seconds
+  milisec = seconds%1000;               // Find the milisecond after decimal
+  seconds = seconds/1000;               // Convert to actual seconds
+
+  if(milisec < 10)
+      cprintf("%d\t%s\t%d.00%d\t%s\t%d\t", p->pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+
+  if(milisec < 100)
+      cprintf("%d\t%s\t%d.0%d\t%s\t%d\t", p->pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+
+  if(milisec > 100)
+      cprintf("%d\t%s\t%d.0%d\t%s\t%d\t", p->pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+}
+#endif
