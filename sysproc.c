@@ -113,3 +113,56 @@ sys_date(void)
   return 0;
 }
 #endif
+
+#ifdef CS333_P2
+uint
+sys_getuid(void)
+{
+  return myproc() -> uid;
+}
+
+uint
+sys_getgid(void)
+{
+  return myproc() -> gid;
+}
+
+uint
+sys_getppid(void)
+{
+  if(myproc() -> parent == NULL)
+     return myproc() -> pid;
+ 
+  return myproc() -> parent -> pid;
+}
+
+int
+sys_setuid(void)
+{
+  int uid;
+   
+  if(argint(0, &uid) < 0)
+    return -1;
+  cprintf("POOP ALERT: my variable is %d\n", uid);
+  if(uid < 0 || uid > 32767)
+    return -1;
+
+  setuid(uid);
+  return 1;
+}
+
+int
+sys_setgid(void)
+{
+  int gid;
+   
+  if(argint(0, &gid) < 0)
+    return -1;
+  cprintf("WET POOP ALERT: my variable is %d\n", gid);
+  if(gid < 0 || gid > 32767)
+    return -1;
+
+  setgid(gid);
+  return 1;
+}
+#endif

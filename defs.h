@@ -121,6 +121,11 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+//proj2
+int		setuid(uint);
+int		getuid(void);
+int             setgid(uint);
+int             getgid(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -537,8 +537,13 @@ procdump(void)
 
   #if defined(CS333_P3P4)
   #define HEADER "\nPID\tName    UID\tGID\tPPID\tPrio\tElapsed\tCPU\tState\tSize\t PCs\n"
+/*
   #elif defined(CS333_P2)
   #define HEADER "\nPID\tName    UID\tGID\tPPID\tElapsed\tCPU\tState\tSize\t PCs\n"
+*/
+  #elif defined(CS333_P2)
+  #define HEADER "\nPID\tName    UID\tGID\tPPID\tElapsed\tState\tSize\t PCs\n"
+
   #elif defined(CS333_P1)
   #define HEADER "\nPID\tName    Elapsed\tState\tSize\t PCs\n"
   #else
@@ -593,5 +598,47 @@ procdumpP1(struct proc *p, char *state)
 
   if(milisec > 100)
       cprintf("%d\t%s\t%d.0%d\t%s\t%d\t", p->pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+}
+#endif
+
+#ifdef CS333_P2
+void
+procdumpP2(struct proc *p, char *state)
+{
+  int seconds;
+  int milisec; 
+
+  // Put equation for ticks here to make it into seconds
+  seconds = ticks - p->start_ticks;     // Find the Seconds
+  milisec = seconds%1000;               // Find the milisecond after decimal
+  seconds = seconds/1000;               // Convert to actual seconds
+
+  if(milisec < 10)
+      cprintf("%d\t%d\t%d\t%d\t%s\t%d.00%d\t%s\t%d\t", p -> pid, p -> uid, p -> gid, p -> parent -> pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+
+  if(milisec < 100)
+      cprintf("%d\t%d\t%d\t%d\t%s\t%d.0%d\t%s\t%d\t", p -> pid, p -> uid, p -> gid, p -> parent -> pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+
+  if(milisec > 100)
+      cprintf("%d\t%d\t%d\t%d\t%s\t%d.0%d\t%s\t%d\t", p -> pid, p -> uid, p -> gid, p -> parent -> pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+}
+
+
+int
+setuid(uint uid)
+{
+  acquire(&ptable.lock);
+  myproc() -> uid = uid;
+  release(&ptable.lock);
+  return 1;
+}
+
+int
+setgid(uint gid)
+{
+  acquire(&ptable.lock);
+  myproc() -> gid = gid;
+  release(&ptable.lock);
+  return 1;
 }
 #endif

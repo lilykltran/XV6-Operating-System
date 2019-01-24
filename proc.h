@@ -53,6 +53,11 @@ struct proc {
   #ifdef CS333_P1
   uint start_ticks;
   #endif
+
+  #ifdef CS333_P2
+  uint uid;
+  uint gid;
+  #endif
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -62,3 +67,5 @@ struct proc {
 //   expandable heap
 
 void procdumpP1(struct proc*, char*);
+void procdumpP2(struct proc*, char*);
+
