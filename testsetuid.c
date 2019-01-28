@@ -5,16 +5,7 @@
 int
 main(int argc, char *argv[])
 {
-  int toSet = 15;
-  setuid(toSet);
-  printf(1, "***** Expecting: %d,  actual:  %d\n\n", toSet, getuid());
-
-  toSet = 99;
-  setgid(toSet);
-  printf(1, "***** Expecting: %d,  actual:  %d\n\n", toSet, getgid());
-
-  printf(1, "PPID: %d\n\n", getppid());
+  printf(1, "***** In %s: my uid is %d\n\n", argv[0], getuid());
   exit();
-
 }
 #endif

@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct uproc;
 
 // bio.c
 void            binit(void);
@@ -126,6 +127,7 @@ int		setuid(uint);
 int		getuid(void);
 int             setgid(uint);
 int             getgid(void);
+int             getprocs(uint, struct uproc*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -6,7 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-
+#include "uproc.h"
 // Testing git
 
 static char *states[] = {
@@ -127,6 +127,11 @@ allocproc(void)
   p -> start_ticks = ticks;
   #endif
 
+  #ifdef CS333_p2
+  p -> cpu_ticks_in = 0;
+  p -> cpu_ticks_total = 0;
+  #endif
+
   return p;
 }
 
@@ -164,6 +169,12 @@ userinit(void)
   acquire(&ptable.lock);
   p->state = RUNNABLE;
   release(&ptable.lock);
+
+#ifdef CS333_P2
+  p->uid = UID; //setting to default
+  p->gid = GID; //setting to default
+#endif
+
 }
 
 // Grow current process's memory by n bytes.
@@ -250,6 +261,7 @@ exit(void)
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
       fileclose(curproc->ofile[fd]);
+
       curproc->ofile[fd] = 0;
     }
   }
@@ -364,6 +376,11 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
+
+#ifdef CS333_P2
+      p->cpu_ticks_in = ticks;
+#endif
+
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -404,6 +421,12 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = mycpu()->intena;
+
+#ifdef CS333_P2
+  // Capture running total
+  p->cpu_ticks_total += ticks - p->cpu_ticks_in; //instance of ticks end - tick start
+#endif
+
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
 }
@@ -527,6 +550,9 @@ kill(int pid)
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
 
+
+
+//Displays process information at initial executation. Code retreieved from http://web.cecs.pdx.edu/~markem/CS333/projects/p1
 void
 procdump(void)
 {
@@ -537,15 +563,13 @@ procdump(void)
 
   #if defined(CS333_P3P4)
   #define HEADER "\nPID\tName    UID\tGID\tPPID\tPrio\tElapsed\tCPU\tState\tSize\t PCs\n"
-/*
+
   #elif defined(CS333_P2)
   #define HEADER "\nPID\tName    UID\tGID\tPPID\tElapsed\tCPU\tState\tSize\t PCs\n"
-*/
-  #elif defined(CS333_P2)
-  #define HEADER "\nPID\tName    UID\tGID\tPPID\tElapsed\tState\tSize\t PCs\n"
 
   #elif defined(CS333_P1)
   #define HEADER "\nPID\tName    Elapsed\tState\tSize\t PCs\n"
+
   #else
   #define HEADER "\n"
   #endif
@@ -578,67 +602,135 @@ procdump(void)
   }
 }
 
+
+//Control-P implmeentation for Project 1. Wrapper for procdump.
 #ifdef CS333_P1
 void
 procdumpP1(struct proc *p, char *state)
 {
   int seconds;
-  int milisec; 
+  int millisec; 
 
   // Put equation for ticks here to make it into seconds
   seconds = ticks - p->start_ticks;     // Find the Seconds
-  milisec = seconds%1000;               // Find the milisecond after decimal
+  millisec = seconds%1000;               // Find the millisecond after decimal
   seconds = seconds/1000;               // Convert to actual seconds
 
-  if(milisec < 10)
-      cprintf("%d\t%s\t%d.00%d\t%s\t%d\t", p->pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+  if(millisec < 10)
+      cprintf("%d\t%s\t%d.00%d\t%s\t%d\t", p->pid, p->name, seconds, millisec, state, p->sz); // Add 2 more zeros for less than 10
 
-  if(milisec < 100)
-      cprintf("%d\t%s\t%d.0%d\t%s\t%d\t", p->pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+  if(millisec < 100)
+      cprintf("%d\t%s\t%d.0%d\t%s\t%d\t", p->pid, p->name, seconds, millisec, state, p->sz); // Add 2 more zeros for less than 10
 
-  if(milisec > 100)
-      cprintf("%d\t%s\t%d.0%d\t%s\t%d\t", p->pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+  if(millisec > 100)
+      cprintf("%d\t%s\t%d.%d\t%s\t%d\t", p->pid, p->name, seconds, millisec, state, p->sz); // Add 2 more zeros for less than 10
 }
 #endif
 
+
+//Control-P implementation for Project 2. Wrapper for procdump.
 #ifdef CS333_P2
 void
 procdumpP2(struct proc *p, char *state)
 {
-  int seconds;
-  int milisec; 
-
   // Put equation for ticks here to make it into seconds
-  seconds = ticks - p->start_ticks;     // Find the Seconds
-  milisec = seconds%1000;               // Find the milisecond after decimal
+  int seconds = ticks - p->start_ticks;     // Find the Seconds
+  int millisec = seconds%1000;               // Find the millisecond after decimal
   seconds = seconds/1000;               // Convert to actual seconds
 
-  if(milisec < 10)
-      cprintf("%d\t%d\t%d\t%d\t%s\t%d.00%d\t%s\t%d\t", p -> pid, p -> uid, p -> gid, p -> parent -> pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+  int cpu_seconds = p->cpu_ticks_total/1000;    
+  int cpu_millisec = p->cpu_ticks_total%1000;   
+  cpu_seconds = seconds/1000;             
 
-  if(milisec < 100)
-      cprintf("%d\t%d\t%d\t%d\t%s\t%d.0%d\t%s\t%d\t", p -> pid, p -> uid, p -> gid, p -> parent -> pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+  cprintf("%d\t%s\t%d\t%d\t", p->pid, p->name, p->uid, p->gid);
+  
+  //Parent check. Are we in the INIT process?
+  if(p->parent == NULL)
+    cprintf("%d\t", p->pid);
+  else
+    cprintf("%d\t", p->parent->pid);
 
-  if(milisec > 100)
-      cprintf("%d\t%d\t%d\t%d\t%s\t%d.0%d\t%s\t%d\t", p -> pid, p -> uid, p -> gid, p -> parent -> pid, p->name, seconds, milisec, state, p->sz); // Add 2 more zeros for less than 10
+  if(millisec < 10)
+    cprintf("%d.00%d\t", seconds, millisec);
+
+  if(millisec < 100)
+    cprintf("%d.0%d\t", seconds, millisec);
+
+  if(millisec > 100)
+    cprintf("%d.%d\t", seconds, millisec);
+
+  if(cpu_millisec < 10)
+    cprintf("%d.00%d\t%s\t%d\t", cpu_seconds, cpu_millisec, state, p->sz); 
+
+  if(cpu_millisec < 100)
+    cprintf("%d.0%d\t%s\t%d\t", cpu_seconds, cpu_millisec, state, p->sz); 
+
+  if(cpu_millisec > 100)
+    cprintf("%d.%d\t%s\t%d\t", cpu_seconds, cpu_millisec, state, p->sz); 
 }
 
 
+//set the UID of the process
 int
 setuid(uint uid)
 {
   acquire(&ptable.lock);
-  myproc() -> uid = uid;
+  myproc()->uid = uid;
   release(&ptable.lock);
   return 1;
 }
 
+
+//set the GID of the process
 int
 setgid(uint gid)
 {
   acquire(&ptable.lock);
-  myproc() -> gid = gid;
+  myproc()->gid = gid;
   release(&ptable.lock);
   return 1;
+}
+
+
+//Displays active processes
+int
+getprocs(uint max, struct uproc *table)
+{
+  acquire(&ptable.lock);
+
+  int count = 0;
+  
+  for(int i = 0; i < max && i < NPROC; ++i) //Tables may vary in sizes. Prevents going out of bounds.
+  {
+    if(ptable.proc[i].state != UNUSED && ptable.proc[i].state != EMBRYO) //These states are inactive
+    {
+      table[i].pid = ptable.proc[i].pid;
+      table[i].uid = ptable.proc[i].uid; 
+      table[i].gid = ptable.proc[i].gid;
+
+      if(ptable.proc[i].parent == 0)
+        table[i].ppid = ptable.proc[i].pid;
+      else
+        table[i].ppid = ptable.proc[i].parent->pid;
+
+      table[i].elapsed_ticks = ticks - ptable.proc[i].start_ticks;
+      table[i].CPU_total_ticks = ptable.proc[i].cpu_ticks_total;
+
+      if(ptable.proc[i].state == SLEEPING)
+        safestrcpy(table[i].state, "sleep", sizeof("sleep"));
+      if(ptable.proc[i].state == RUNNABLE)
+        safestrcpy(table[i].state, "runnable", sizeof("runnable"));
+      if(ptable.proc[i].state == RUNNING)
+        safestrcpy(table[i].state, "running", sizeof("running"));
+      if(ptable.proc[i].state == ZOMBIE)
+        safestrcpy(table[i].state, "zombie", sizeof("zombie"));
+
+      table[i].size = ptable.proc[i].sz; 
+      safestrcpy(table[i].name, ptable.proc[i].name, sizeof(ptable.proc[i].name));
+      ++count;
+    }
+  }
+  release(&ptable.lock);
+  return count; //How large uproc *table is
 }
 #endif

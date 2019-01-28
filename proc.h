@@ -57,6 +57,8 @@ struct proc {
   #ifdef CS333_P2
   uint uid;
   uint gid;
+  uint cpu_ticks_total;
+  uint cpu_ticks_in;
   #endif
 };
 
