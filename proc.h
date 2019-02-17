@@ -60,6 +60,10 @@ struct proc {
   uint cpu_ticks_total;
   uint cpu_ticks_in;
   #endif
+
+  #ifdef CS333_P3
+  struct proc * next;
+  #endif
 };
 
 // Process memory is laid out contiguously, low addresses first:

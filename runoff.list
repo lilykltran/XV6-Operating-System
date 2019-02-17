@@ -88,3 +88,6 @@ test1P2.c
 uproc.h
 ps.c
 time.c
+testsetuid.c
+testuidgid.c
+p2-test.c

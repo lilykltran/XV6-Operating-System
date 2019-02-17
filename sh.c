@@ -178,7 +178,7 @@ setbuiltin(char *p)
     if (rc == 0)
       return 0;
   }
-  printf(2, "Invalid _set parameter\n");
+  //printf(2, "Invalid _set parameter\n");
   return -1;
 }
 
@@ -195,7 +195,7 @@ getbuiltin(char *p)
     printf(2, "%d\n", getgid());
     return 0;
   }
-  printf(2, "Invalid _get parameter\n");
+  //printf(2, "Invalid _get parameter\n");
   return -1;
 }
 

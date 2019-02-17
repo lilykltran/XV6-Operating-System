@@ -128,6 +128,24 @@ int		getuid(void);
 int             setgid(uint);
 int             getgid(void);
 int             getprocs(uint, struct uproc*);
+//proj3
+#ifdef CS333_P3
+int             insert(int, struct proc*);
+void initProcessLists(void);
+void initFreeList(void);
+//static void stateListAddAtHead(struct ptrs*list, struct proc* p);
+int             traverse(int);
+
+//list management function prototypes
+/*
+static void initProcessLists(void);
+static void initFreeList(void);
+static void assertState(struct proc*, enum procstate);
+static void stateListAdd(struct ptrs*, struct proc*);
+static int  stateListRemove(struct ptrs*, struct proc* p);
+static void promoteAll();
+*/
+#endif
 
 // swtch.S
 void            swtch(struct context**, struct context*);

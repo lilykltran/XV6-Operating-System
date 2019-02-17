@@ -2,7 +2,7 @@
 #include "types.h"
 #include "user.h"
 #include "uproc.h"
-#define MAX 16; //altered for testing
+#define MAX 72; //altered for testing
 
 int
 main(void)
