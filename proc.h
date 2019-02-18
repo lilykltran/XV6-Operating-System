@@ -71,7 +71,3 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
-
-void procdumpP1(struct proc*, char*);
-void procdumpP2(struct proc*, char*);
-

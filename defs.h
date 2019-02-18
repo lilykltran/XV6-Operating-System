@@ -54,7 +54,6 @@ int             readi(struct inode*, char*, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, char*, uint, uint);
 
-
 // ide.c
 void            ideinit(void);
 void            ideintr(void);
@@ -122,29 +121,20 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-//proj2
+// proc dump functions
+void procdumpP1(struct proc*, char*);
+void procdumpP2(struct proc*, char*);
+void procdumpP3(struct proc*, char*);
+// proj2
 int		setuid(uint);
 int		getuid(void);
 int             setgid(uint);
 int             getgid(void);
 int             getprocs(uint, struct uproc*);
-//proj3
+// proj3
+// list management function prototypes
 #ifdef CS333_P3
-int             insert(int, struct proc*);
-void initProcessLists(void);
-void initFreeList(void);
-//static void stateListAddAtHead(struct ptrs*list, struct proc* p);
-int             traverse(int);
-
-//list management function prototypes
-/*
-static void initProcessLists(void);
-static void initFreeList(void);
-static void assertState(struct proc*, enum procstate);
-static void stateListAdd(struct ptrs*, struct proc*);
-static int  stateListRemove(struct ptrs*, struct proc* p);
-static void promoteAll();
-*/
+int traverse(int);
 #endif
 
 // swtch.S
