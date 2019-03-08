@@ -283,7 +283,7 @@ main(int argc, char *argv[])
       sleepWakeTest(); 
       printf(1,"\n---------- TEST 6 COMPLETE ----------\n");
       break;
-    case '7':  
+    case '8':  
       printf(1,"\n----------- TEST 7 Round Robin Test ----------\n");
       roundRobinTest(); 
       printf(1,"\n---------- TEST 7 COMPLETE ----------\n");

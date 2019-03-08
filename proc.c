@@ -484,6 +484,7 @@ traverse(int state)
   if(state == 0)
     cprintf("Free List Size: %d\n", ucount);
 
+  cprintf("\n\n");
   return 0;
 }
 #endif
@@ -1194,31 +1195,82 @@ wakeup(void *chan)
 int
 kill(int pid)
 {
-  struct proc *p;
+  struct proc *p = ptable.list[SLEEPING].head;
+  struct proc *p1 = ptable.list[EMBRYO].head;
+  struct proc *p2 = ptable.list[RUNNABLE].head;
+  struct proc *p3 = ptable.list[RUNNING].head;
+  struct proc *p4 = ptable.list[ZOMBIE].head;
 
   acquire(&ptable.lock);
 
-  for(int i = EMBRYO; i < statecount; ++i)
+  while(p) // Sleeping list
   {
-    p = ptable.list[i].head;
-    while(p)
+    // Check if we can kill from sleep list
+    if(p->pid == pid)
     {
-      if(p -> pid == pid)
+      p->killed = 1;
+
+      if(p->state == SLEEPING)
       {
-        p -> killed = 1;
-        // Wake process from sleep if necessary.
-        if(i == SLEEPING)
-        {
-          stateListRemove(&ptable.list[SLEEPING], p);
-          assertState(p, SLEEPING);
-          p->state = RUNNABLE;
-          stateListAdd(&ptable.list[RUNNABLE], p);
-         }
-        release(&ptable.lock);
-        return 0;
-       }
-     }
+        int rc = stateListRemove(&ptable.list[SLEEPING], p); 
+        if(rc == -1)
+          panic("Kill function\n");
+        assertState(p,SLEEPING);
+        // add to runnable list 
+        p->state = RUNNABLE;
+        stateListAdd(&ptable.list[RUNNABLE], p); // Add to the runnable list
+	release(&ptable.lock);
+	return 0;
+      }
+    }
+    // Traverse
+    p = p->next;
   }
+
+  while(p1) // Embryo list
+  {
+    if(p1->pid == pid)
+    {
+      p1->killed = 1;
+      release(&ptable.lock);
+      return -1;
+     }
+     p1 = p1 -> next;
+   }
+
+  while(p2) // Runnable list
+  {
+    if(p2->pid == pid)
+    {
+      p2->killed = 1;
+      release(&ptable.lock);
+      return -1;
+     }
+     p2 = p2 -> next;
+   }
+
+  while(p3) // Running list
+  {
+    if(p3->pid == pid)
+    {
+      p3->killed = 1;
+      release(&ptable.lock);
+      return -1;
+     }
+     p3 = p3 -> next;
+   }
+
+  while(p4) // Zombie List
+  {
+    if(p4->pid == pid)
+    {
+      p4->killed = 1;
+      release(&ptable.lock);
+      return -1;
+     }
+     p4 = p4 -> next;
+   }
+
   release(&ptable.lock);
   return -1;
 }
