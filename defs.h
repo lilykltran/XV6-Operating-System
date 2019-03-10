@@ -137,6 +137,11 @@ int             getprocs(uint, struct uproc*);
 int traverse(int);
 #endif
 
+#ifdef CS333_P4
+int            setpriority(int, int);
+int            getpriority(int);
+#endif
+
 // swtch.S
 void            swtch(struct context**, struct context*);
 

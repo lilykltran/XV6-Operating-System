@@ -14,6 +14,9 @@
 #define running 4
 #define zombie 5
 #define statecount NELEM(states)
+#define BUDGET 99999
+#define TICKS_TO_PROMOTE 50000
+#define MAXPRIO 6
 // Testing git
 
 static char *states[] = {
@@ -35,6 +38,10 @@ static struct {
   struct proc proc[NPROC];
 #ifdef CS333_P3
   struct ptrs list[statecount];
+#endif
+#ifdef CS333_P4
+  struct ptrs ready[MAXPRIO+1];
+  uint PromoteAtTime;
 #endif
 } ptable;
 
@@ -283,9 +290,13 @@ allocproc(void)
   p -> start_ticks = ticks;
   #endif
 
-  #ifdef CS333_p2
+  #ifdef CS333_P2
   p -> cpu_ticks_in = 0;
   p -> cpu_ticks_total = 0;
+  #endif
+
+  #ifdef CS333_P4
+  p -> budget = BUDGET;
   #endif
 
   return p; 
@@ -391,13 +402,23 @@ userinit(void)
   stateListRemove(&ptable.list[p->state], p);
   assertState(p, EMBRYO);
   p->state = RUNNABLE;
+  #ifdef CS333_P3
   stateListAdd(&ptable.list[p->state], p);
+  #elif CS333_P4
+  p -> priority = 0;   
+  stateListAdd(&ptable.ready[p -> priority], p);
+  #endif
   release(&ptable.lock);
 
 #ifdef CS333_P2
   p->uid = UID; //setting to default
   p->gid = GID; //setting to default
 #endif
+
+#ifdef CS333_P4
+  ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE; // initial time, to be updated in scheduler
+#endif
+
 }
 
 // Set up first user process
@@ -439,6 +460,7 @@ userinit(void)
   p->uid = UID; //setting to default
   p->gid = GID; //setting to default
 #endif
+
 }
 #endif
    
@@ -558,7 +580,12 @@ fork(void)
   stateListRemove(&ptable.list[EMBRYO], np);
   assertState(np, EMBRYO);
   np->state = RUNNABLE;
+  #ifdef CS333_P3
   stateListAdd(&ptable.list[RUNNABLE], np);
+  #elif CS333_P4
+  np->priority = 0; 
+  stateListAdd(&ptable.ready[np->priority], np);
+  #endif
   release(&ptable.lock);
 
   return pid;
@@ -656,7 +683,22 @@ exit(void)
       }
       p = p -> next;
     }
-   }
+  }
+
+  #ifdef CS333_P4
+  for(int i = 0; i < MAXPRIO+1; ++i)
+  {
+    p = ptable.ready[i].head; 
+    while (p)
+    {
+      if(p-> parent == curproc)
+      {
+        p->parent = initproc;
+      }
+      p = p -> next;
+    }
+  }
+  #endif
  
   // Jump into the scheduler, never to return.
   stateListRemove(&ptable.list[RUNNING], curproc);
@@ -757,6 +799,19 @@ wait(void)
       p3 = p3 -> next;
     }
 
+    #ifdef CS333_P4
+    for(int i = 0; i < MAXPRIO+1; ++i)
+    {
+      p3 = ptable.ready[i].head;
+      while(p3)
+      { 
+        if(p3->parent == curproc)
+          havekids = 1;
+        p3 = p3 -> next;
+      }
+    }
+    #endif
+   
     while(p4) // Running list
     {
       if(p4->parent == curproc)
@@ -871,7 +926,71 @@ scheduler(void)
 #ifdef PDX_XV6
     idle = 1;  // assume idle unless we schedule a process
 #endif // PDX_XV6
-    // Loop over process table looking for process to run.
+
+    #ifdef CS333_P4
+    if(ticks >= ptable.PromoteAtTime)
+    {
+      for(int i = 1; i <= MAXPRIO; i++){
+        p = ptable.ready[i].head;
+        while(p)
+        {
+          stateListRemove(&ptable.ready[i], p);   // remove from previous
+          p->priority -= 1;                                            // update priority
+          stateListAdd(&ptable.ready[i-1], p);                 // add to new list
+          p = p->next;
+        } 
+      }
+
+      p = ptable.list[SLEEPING].head;
+      while(p){
+        if(p->priority > 0){
+          p->priority -= 1;
+        }
+        p = p->next;
+      }
+      p = ptable.list[RUNNING].head;
+      while(p){
+        if(p->priority > 0){
+          p->priority -= 1;
+        }
+        p = p->next;
+      }
+    ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;                   // reset promotion time
+    }
+  
+    acquire(&ptable.lock);
+    for(int i = 0; i <= MAXPRIO; ++i)
+    {
+      p = ptable.ready[i].head;
+      if(p)
+      {
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        idle = 0;  // not idle this timeslice
+        c->proc = p;
+        switchuvm(p);
+        int rc = stateListRemove(&ptable.ready[i], p); //Removing process p from specific list
+        if(rc == -1)
+          panic("The process wasn't removed form runnable state");
+        assertState(p, RUNNABLE); 
+        p->state = RUNNING;
+        stateListAdd(&ptable.list[RUNNING], p);
+#ifdef CS333_P2
+        p->cpu_ticks_in = ticks;
+#endif
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+  
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
+    }
+    #endif
+
+/*
+    //Project 3
     acquire(&ptable.lock);
     p = ptable.list[RUNNABLE].head;
     if(p)
@@ -902,6 +1021,7 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+*/
     release(&ptable.lock);
 #ifdef PDX_XV6
     // if idle, wait for next interrupt
@@ -1006,6 +1126,10 @@ sched(void)
   p->cpu_ticks_total += ticks - p->cpu_ticks_in; //instance of ticks end - tick start
 #endif
 
+#ifdef CS333_P4
+  p->budget -= (ticks - p->cpu_ticks_in); // setting budget
+#endif
+
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
 }
@@ -1021,7 +1145,16 @@ yield(void)
   assertState(curproc, RUNNING);
   stateListRemove(&ptable.list[RUNNING], curproc);
   curproc->state = RUNNABLE;
-  stateListAdd(&ptable.list[RUNNABLE], curproc);
+  #ifdef CS333_P4
+  if((int)curproc -> budget <= 0)
+  {
+    curproc -> budget = BUDGET;
+    stateListAdd(&ptable.ready[curproc -> priority + 1], curproc);
+  }
+  else
+    stateListAdd(&ptable.ready[curproc -> priority], curproc);
+  #endif
+  //stateListAdd(&ptable.list[RUNNABLE], curproc); Project 3
   sched();
   release(&ptable.lock);
 }
@@ -1157,7 +1290,8 @@ wakeup1(void *chan)
         panic("Wake up 1 error.");
       assertState(current, SLEEPING);
       current->state = RUNNABLE;
-      stateListAdd(&ptable.list[RUNNABLE], current);
+      stateListAdd(&ptable.ready[current -> priority], current);
+//    stateListAdd(&ptable.list[RUNNABLE], current); PROJECT 3
       current = p;
      }
    else
@@ -1197,7 +1331,7 @@ kill(int pid)
 {
   struct proc *p = ptable.list[SLEEPING].head;
   struct proc *p1 = ptable.list[EMBRYO].head;
-  struct proc *p2 = ptable.list[RUNNABLE].head;
+  struct proc *p2 = ptable.list[RUNNABLE].head; //PROJECT 3
   struct proc *p3 = ptable.list[RUNNING].head;
   struct proc *p4 = ptable.list[ZOMBIE].head;
 
@@ -1237,7 +1371,24 @@ kill(int pid)
      }
      p1 = p1 -> next;
    }
+  
+  #ifdef CS333_P4
+  for(int i = 0; i < MAXPRIO+1; ++i)
+  {
+    p2 = ptable.ready[i].head;
+    while(p2) 
+    {
+      if(p2->pid == pid)
+      {
+        p2->killed = 1;
+        release(&ptable.lock);
+        return -1;
+      }
+      p2 = p2 -> next;
+    }
+  }
 
+  #else //PROJECT 3
   while(p2) // Runnable list
   {
     if(p2->pid == pid)
@@ -1247,7 +1398,8 @@ kill(int pid)
       return -1;
      }
      p2 = p2 -> next;
-   }
+  }
+  #endif
 
   while(p3) // Running list
   {
