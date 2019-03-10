@@ -402,15 +402,15 @@ userinit(void)
   stateListRemove(&ptable.list[p->state], p);
   assertState(p, EMBRYO);
   p->state = RUNNABLE;
-  #ifdef CS333_P3
-  stateListAdd(&ptable.list[p->state], p);
-  #elif CS333_P4
+  //stateListAdd(&ptable.list[p->state], p); PROJECT 3
+  #ifdef CS333_P4
   p -> priority = 0;   
   stateListAdd(&ptable.ready[p -> priority], p);
   #endif
   release(&ptable.lock);
 
 #ifdef CS333_P2
+  p->parent = p;
   p->uid = UID; //setting to default
   p->gid = GID; //setting to default
 #endif
@@ -563,6 +563,11 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+ 
+  #ifdef CS333_P2
+  np->uid = curproc->uid;
+  np->gid = curproc->gid;
+  #endif
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -580,9 +585,8 @@ fork(void)
   stateListRemove(&ptable.list[EMBRYO], np);
   assertState(np, EMBRYO);
   np->state = RUNNABLE;
-  #ifdef CS333_P3
-  stateListAdd(&ptable.list[RUNNABLE], np);
-  #elif CS333_P4
+  //stateListAdd(&ptable.list[RUNNABLE], np); PROJECT 3
+  #ifdef CS333_P4
   np->priority = 0; 
   stateListAdd(&ptable.ready[np->priority], np);
   #endif
@@ -774,7 +778,7 @@ wait(void)
 
     struct proc * p1 = ptable.list[EMBRYO].head;
     struct proc * p2 = ptable.list[SLEEPING].head;
-    struct proc * p3 = ptable.list[RUNNABLE].head;
+    //struct proc * p3 = ptable.list[RUNNABLE].head; PROJECT 3
     struct proc * p4 = ptable.list[RUNNING].head; 
     struct proc * p = ptable.list[ZOMBIE].head;
   
@@ -792,17 +796,19 @@ wait(void)
       p2 = p2 -> next;
     }
 
+    /* PROJECT 3
     while(p3) // Runnable list
     {
       if(p3->parent == curproc)
         havekids = 1;  
       p3 = p3 -> next;
     }
+    */
 
     #ifdef CS333_P4
     for(int i = 0; i < MAXPRIO+1; ++i)
     {
-      p3 = ptable.ready[i].head;
+      struct proc * p3 = ptable.ready[i].head;
       while(p3)
       { 
         if(p3->parent == curproc)
@@ -988,7 +994,6 @@ scheduler(void)
       }
     }
     #endif
-
 /*
     //Project 3
     acquire(&ptable.lock);
@@ -1145,16 +1150,17 @@ yield(void)
   assertState(curproc, RUNNING);
   stateListRemove(&ptable.list[RUNNING], curproc);
   curproc->state = RUNNABLE;
-  #ifdef CS333_P4
+
   if((int)curproc -> budget <= 0)
   {
     curproc -> budget = BUDGET;
-    stateListAdd(&ptable.ready[curproc -> priority + 1], curproc);
+    if(curproc -> priority < MAXPRIO)
+      curproc -> priority += 1;
+    stateListAdd(&ptable.ready[curproc -> priority], curproc);
   }
   else
     stateListAdd(&ptable.ready[curproc -> priority], curproc);
-  #endif
-  //stateListAdd(&ptable.list[RUNNABLE], curproc); Project 3
+
   sched();
   release(&ptable.lock);
 }
@@ -1291,7 +1297,6 @@ wakeup1(void *chan)
       assertState(current, SLEEPING);
       current->state = RUNNABLE;
       stateListAdd(&ptable.ready[current -> priority], current);
-//    stateListAdd(&ptable.list[RUNNABLE], current); PROJECT 3
       current = p;
      }
    else
@@ -1331,7 +1336,7 @@ kill(int pid)
 {
   struct proc *p = ptable.list[SLEEPING].head;
   struct proc *p1 = ptable.list[EMBRYO].head;
-  struct proc *p2 = ptable.list[RUNNABLE].head; //PROJECT 3
+  //struct proc *p2 = ptable.list[RUNNABLE].head; PROJECT 3
   struct proc *p3 = ptable.list[RUNNING].head;
   struct proc *p4 = ptable.list[ZOMBIE].head;
 
@@ -1352,7 +1357,8 @@ kill(int pid)
         assertState(p,SLEEPING);
         // add to runnable list 
         p->state = RUNNABLE;
-        stateListAdd(&ptable.list[RUNNABLE], p); // Add to the runnable list
+        p->priority = 0;
+        stateListAdd(&ptable.ready[p->priority], p); // Add to the runnable list
 	release(&ptable.lock);
 	return 0;
       }
@@ -1375,7 +1381,7 @@ kill(int pid)
   #ifdef CS333_P4
   for(int i = 0; i < MAXPRIO+1; ++i)
   {
-    p2 = ptable.ready[i].head;
+    struct proc * p2 = ptable.ready[i].head;
     while(p2) 
     {
       if(p2->pid == pid)
@@ -1386,18 +1392,6 @@ kill(int pid)
       }
       p2 = p2 -> next;
     }
-  }
-
-  #else //PROJECT 3
-  while(p2) // Runnable list
-  {
-    if(p2->pid == pid)
-    {
-      p2->killed = 1;
-      release(&ptable.lock);
-      return -1;
-     }
-     p2 = p2 -> next;
   }
   #endif
 
