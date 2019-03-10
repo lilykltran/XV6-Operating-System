@@ -13,11 +13,11 @@ main(void)
 
   printf(1, "\nMAX = %d\n", max); //Display the current MAX value for 1, 16, 64, and 72 
 
-  printf(1, "\nPID\tName\tUID\tGID\tPPID\tElapsed\tCPU\tState\tSize\n"); //Print the header
+  printf(1, "\nPID\tName\tUID\tGID\tPPID\tPrio\tElapsed\tCPU\tState\tSize\n"); //Print the header
 
   for (int i = 0; i < num; ++i)
   {
-    printf(1, "%d\t%s\t%d\t%d\t%d\t", table[i].pid, table[i].name, table[i].uid, table[i].gid, table[i].ppid);
+    printf(1, "%d\t%s\t%d\t%d\t%d\t%d\t", table[i].pid, table[i].name, table[i].uid, table[i].gid, table[i].ppid, table[i].priority);
 
     int sec = table[i].elapsed_ticks/1000; //Find sec
     int ms = table[i].elapsed_ticks%1000; //Find milisec for elapsed

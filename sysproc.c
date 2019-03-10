@@ -10,6 +10,7 @@
 #ifdef PDX_XV6
 #include "pdx-kernel.h"
 #endif // PDX_XV6
+#define MAX 5
 
 int
 sys_fork(void)
@@ -179,8 +180,6 @@ sys_setgid(void)
   return 1;
 }
 
-
-//Wrapper for getting the current processes. 
 int
 sys_getprocs(void)
 {
@@ -196,5 +195,32 @@ sys_getprocs(void)
     else
       return -1;
   }
+}
+#endif
+
+
+#ifdef CS333_P4
+int
+sys_getpriority(void)
+{
+  int pid;
+  if(argint(0, &pid) < 0) 
+    return -1;
+
+  return getpriority(pid);
+}
+
+int
+sys_setpriority(void)
+{
+  int pid, priority;
+
+  if(argint(0, &pid) < 0 || argint(1, &priority) < 0)
+    return -1;
+
+  if(argint(1, &priority) < 0)
+    return -1;
+
+  return setpriority(pid, priority);
 }
 #endif

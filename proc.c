@@ -14,8 +14,8 @@
 #define running 4
 #define zombie 5
 #define statecount NELEM(states)
-#define BUDGET 99999
-#define TICKS_TO_PROMOTE 50000
+#define BUDGET 300
+#define TICKS_TO_PROMOTE 3000
 #define MAXPRIO 6
 // Testing git
 
@@ -404,7 +404,7 @@ userinit(void)
   p->state = RUNNABLE;
   //stateListAdd(&ptable.list[p->state], p); PROJECT 3
   #ifdef CS333_P4
-  p -> priority = 0;   
+  p -> priority = MAXPRIO;   
   stateListAdd(&ptable.ready[p -> priority], p);
   #endif
   release(&ptable.lock);
@@ -484,7 +484,7 @@ traverse(int state)
 
   while(current)
   {
-    if(state == 2 || state == 3) //runnable or sleeping
+    if(state == 2) //sleeping
     {
       cprintf("%d -> ", current -> pid);  
       current = current -> next;
@@ -502,9 +502,24 @@ traverse(int state)
       current = current -> next;
     }
   }
+  #ifdef CS333_P4
+  if(state == 3) //ready list
+  {
+     for(int i = 0; i < MAXPRIO+1; ++i)
+     {
+       cprintf("MAXPRIO-%d: \n", i);
+       struct proc * current = ptable.ready[i].head;
+       while(current)
+       {
+         cprintf("(%d, %d) -> ", i, current -> pid, current -> budget);
+         current = current -> next;
+       }
+     }
+  } 
+  #endif
 
   if(state == 0)
-    cprintf("Free List Size: %d\n", ucount);
+    cprintf("\nFree List Size: %d\n", ucount);
 
   cprintf("\n\n");
   return 0;
@@ -585,10 +600,11 @@ fork(void)
   stateListRemove(&ptable.list[EMBRYO], np);
   assertState(np, EMBRYO);
   np->state = RUNNABLE;
-  //stateListAdd(&ptable.list[RUNNABLE], np); PROJECT 3
   #ifdef CS333_P4
-  np->priority = 0; 
+  np->priority = MAXPRIO; 
   stateListAdd(&ptable.ready[np->priority], np);
+  #else
+  stateListAdd(&ptable.list[RUNNABLE], np);
   #endif
   release(&ptable.lock);
 
@@ -695,7 +711,7 @@ exit(void)
     p = ptable.ready[i].head; 
     while (p)
     {
-      if(p-> parent == curproc)
+      if(p->parent == curproc)
       {
         p->parent = initproc;
       }
@@ -778,7 +794,6 @@ wait(void)
 
     struct proc * p1 = ptable.list[EMBRYO].head;
     struct proc * p2 = ptable.list[SLEEPING].head;
-    //struct proc * p3 = ptable.list[RUNNABLE].head; PROJECT 3
     struct proc * p4 = ptable.list[RUNNING].head; 
     struct proc * p = ptable.list[ZOMBIE].head;
   
@@ -796,15 +811,6 @@ wait(void)
       p2 = p2 -> next;
     }
 
-    /* PROJECT 3
-    while(p3) // Runnable list
-    {
-      if(p3->parent == curproc)
-        havekids = 1;  
-      p3 = p3 -> next;
-    }
-    */
-
     #ifdef CS333_P4
     for(int i = 0; i < MAXPRIO+1; ++i)
     {
@@ -816,8 +822,17 @@ wait(void)
         p3 = p3 -> next;
       }
     }
+
+    #else
+    struct proc * p3 = ptable.list[RUNNABLE].head;
+    while(p3) // Runnable list
+    {
+      if(p3->parent == curproc)
+        havekids = 1;  
+      p3 = p3 -> next;
+    }
     #endif
-   
+ 
     while(p4) // Running list
     {
       if(p4->parent == curproc)
@@ -936,28 +951,31 @@ scheduler(void)
     #ifdef CS333_P4
     if(ticks >= ptable.PromoteAtTime)
     {
-      for(int i = 1; i <= MAXPRIO; i++){
+      for(int i = MAXPRIO-1; i >= 0; i--){
         p = ptable.ready[i].head;
         while(p)
         {
           stateListRemove(&ptable.ready[i], p);   // remove from previous
-          p->priority -= 1;                                            // update priority
-          stateListAdd(&ptable.ready[i-1], p);                 // add to new list
+          if(p->priority > 0 && p -> priority < MAXPRIO)
+          {
+            p->priority += 1;                                            // update priority
+          }
+          stateListAdd(&ptable.ready[p->priority], p);                 // add to new list
           p = p->next;
         } 
       }
 
       p = ptable.list[SLEEPING].head;
       while(p){
-        if(p->priority > 0){
-          p->priority -= 1;
+        if(p->priority > 0 && p->priority < MAXPRIO){
+          p->priority += 1;
         }
         p = p->next;
       }
       p = ptable.list[RUNNING].head;
       while(p){
-        if(p->priority > 0){
-          p->priority -= 1;
+        if(p->priority > 0 && p->priority < MAXPRIO){
+          p->priority += 1;
         }
         p = p->next;
       }
@@ -965,7 +983,7 @@ scheduler(void)
     }
   
     acquire(&ptable.lock);
-    for(int i = 0; i <= MAXPRIO; ++i)
+    for(int i = MAXPRIO; i >= 0; --i)
     {
       p = ptable.ready[i].head;
       if(p)
@@ -993,8 +1011,8 @@ scheduler(void)
         c->proc = 0;
       }
     }
-    #endif
-/*
+
+    #else
     //Project 3
     acquire(&ptable.lock);
     p = ptable.list[RUNNABLE].head;
@@ -1026,7 +1044,8 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-*/
+    #endif 
+
     release(&ptable.lock);
 #ifdef PDX_XV6
     // if idle, wait for next interrupt
@@ -1150,17 +1169,24 @@ yield(void)
   assertState(curproc, RUNNING);
   stateListRemove(&ptable.list[RUNNING], curproc);
   curproc->state = RUNNABLE;
-
-  if((int)curproc -> budget <= 0)
-  {
-    curproc -> budget = BUDGET;
-    if(curproc -> priority < MAXPRIO)
-      curproc -> priority += 1;
-    stateListAdd(&ptable.ready[curproc -> priority], curproc);
-  }
-  else
-    stateListAdd(&ptable.ready[curproc -> priority], curproc);
-
+  
+  #ifdef CS333_P4
+  //if((int)curproc -> budget <= 0)
+  //{
+//    curproc -> budget = BUDGET;
+    curproc -> budget -= (ticks - curproc -> cpu_ticks_in);
+    if(curproc -> budget <= 0)
+    {
+      curproc -> budget = BUDGET; // Reset budget and demote
+      if(curproc -> priority > 0)
+        curproc -> priority -= 1;
+      stateListAdd(&ptable.ready[curproc -> priority], curproc);
+    }
+    else
+      stateListAdd(&ptable.ready[curproc -> priority], curproc);
+  #else
+  stateListAdd(&ptable.list[RUNNABLE], curproc); 
+  #endif
   sched();
   release(&ptable.lock);
 }
@@ -1226,8 +1252,16 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  #ifdef CS333_P4
+  p -> budget -= (ticks - p->cpu_ticks_in);
+  if(p -> budget <= 0)
+  {
+    p -> budget = BUDGET; // reset budget and demote
+    if(p -> priority > 0)
+      p -> priority -= 1;
+  }
+  #endif
   stateListAdd(&ptable.list[SLEEPING], p);
-
   sched();
 
   // Tidy up.
@@ -1296,7 +1330,11 @@ wakeup1(void *chan)
         panic("Wake up 1 error.");
       assertState(current, SLEEPING);
       current->state = RUNNABLE;
+      #ifdef CS333_P4
       stateListAdd(&ptable.ready[current -> priority], current);
+      #else
+      stateListAdd(&ptable.list[RUNNABLE], current);
+      #endif
       current = p;
      }
    else
@@ -1336,7 +1374,6 @@ kill(int pid)
 {
   struct proc *p = ptable.list[SLEEPING].head;
   struct proc *p1 = ptable.list[EMBRYO].head;
-  //struct proc *p2 = ptable.list[RUNNABLE].head; PROJECT 3
   struct proc *p3 = ptable.list[RUNNING].head;
   struct proc *p4 = ptable.list[ZOMBIE].head;
 
@@ -1357,8 +1394,12 @@ kill(int pid)
         assertState(p,SLEEPING);
         // add to runnable list 
         p->state = RUNNABLE;
+        #ifdef CS333_P4
         p->priority = 0;
         stateListAdd(&ptable.ready[p->priority], p); // Add to the runnable list
+        #else
+        stateListAdd(&ptable.list[RUNNABLE], p);
+        #endif
 	release(&ptable.lock);
 	return 0;
       }
@@ -1393,6 +1434,18 @@ kill(int pid)
       p2 = p2 -> next;
     }
   }
+  #else
+  struct proc * p2 = ptable.list[RUNNABLE].head;
+  while(p2)
+  {
+    if(p2->pid == pid)
+    {
+      p2->killed = 1;
+      release(&ptable.lock);
+      return -1;
+     }
+     p2 = p2 -> next;
+   }
   #endif
 
   while(p3) // Running list
@@ -1460,7 +1513,7 @@ procdump(void)
   char *state;
   uint pc[10];
 
-  #if defined(CS333_P3P4)
+  #if defined(CS333_P4)
   #define HEADER "\nPID\tName    UID\tGID\tPPID\tPrio\tElapsed\tCPU\tState\tSize\t PCs\n"
 
   #elif defined(CS333_P3)
@@ -1485,8 +1538,8 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-  #if defined(CS333_P3P4)
-    procdumpP3P4(p, state);
+  #if defined(CS333_P4)
+    procdumpP4(p, state);
   #elif defined(CS333_P3)
     procdumpP3(p, state);
   #elif defined(CS333_P2)
@@ -1616,6 +1669,52 @@ procdumpP3(struct proc *p, char *state)
 }
 #endif
 
+
+//Control-P implementation for Project 4. Wrapper for procdump.
+#ifdef CS333_P4
+void
+procdumpP4(struct proc *p, char *state)
+{
+// Put equation for ticks here to make it into seconds
+  int seconds = ticks - p->start_ticks;     // Find the Seconds
+  int millisec = seconds%1000;               // Find the millisecond after decimal
+  seconds = seconds/1000;               // Convert to actual seconds
+
+  int cpu_seconds = p->cpu_ticks_total/1000;    
+  int cpu_millisec = p->cpu_ticks_total%1000;   
+  cpu_seconds = seconds/1000;             
+
+  cprintf("%d\t%s\t%d\t%d\t", p->pid, p->name, p->uid, p->gid);
+  
+  //Parent check. Are we in the INIT process?
+  if(p->parent == NULL)
+    cprintf("%d\t", p->pid);
+  else
+    cprintf("%d\t", p->parent->pid);
+
+  cprintf("%d\t", p->priority);
+
+  if(millisec < 10)
+    cprintf("%d.00%d\t", seconds, millisec);
+
+  if(millisec < 100)
+    cprintf("%d.0%d\t", seconds, millisec);
+
+  if(millisec > 100)
+    cprintf("%d.%d\t", seconds, millisec);
+
+  if(cpu_millisec < 10)
+    cprintf("%d.00%d\t%s\t%d\t", cpu_seconds, cpu_millisec, state, p->sz); 
+
+  if(cpu_millisec < 100)
+    cprintf("%d.0%d\t%s\t%d\t", cpu_seconds, cpu_millisec, state, p->sz); 
+
+  if(cpu_millisec > 100)
+    cprintf("%d.%d\t%s\t%d\t", cpu_seconds, cpu_millisec, state, p->sz); 
+}
+#endif
+
+
 #ifdef CS333_P2
 // Set the UID of the process
 int
@@ -1657,7 +1756,10 @@ getprocs(uint max, struct uproc *table)
         table[i].ppid = ptable.proc[i].pid;
       else
         table[i].ppid = ptable.proc[i].parent->pid;
-
+     
+      #ifdef CS333_P4
+      table[i].priority = ptable.proc[i].priority;
+      #endif
       table[i].elapsed_ticks = ticks - ptable.proc[i].start_ticks;
       table[i].CPU_total_ticks = ptable.proc[i].cpu_ticks_total;
 
@@ -1677,5 +1779,130 @@ getprocs(uint max, struct uproc *table)
   }
   release(&ptable.lock);
   return count; //How large uproc *table is
+}
+#endif
+
+#ifdef CS333_P4
+
+// Gets the pid of an active process
+int
+getpriority(int pid)
+{
+  struct proc * p;
+   // first check ready list 
+  for(int i = 0; i < MAXPRIO; ++i)
+  {
+    p = ptable.ready[i].head;
+    while(p) // gets me to the null
+    {
+      if (p->pid == pid)
+      {
+        return p->pid;
+      }	
+      p = p->next;
+    }
+  } 
+
+  // if not pid not found in ready list,
+  // check running list
+  p = ptable.list[RUNNING].head;
+  while(p)
+  {
+    // if pid matches, then adjust
+    // pid 
+    if (p->pid == pid)  
+    {
+     return p -> pid;
+    }
+    p = p->next;
+  } 
+
+  // if not pid not found in ready list,
+  // or running, check sleep
+  p = ptable.list[SLEEPING].head;
+  while(p)
+  {
+    // if pid matches, then adjust
+    // pid 
+    if (p->pid == pid)  
+    {
+      return p -> pid;
+    }
+    p = p->next;
+  }
+  // If no pid was found in any active processes
+  return -1; 
+}
+
+
+// Updates the priority of a process in the ready, sleep, or running lists
+int
+setpriority(int pid, int priority)
+{
+   if (pid > NPROC || pid < 0)
+      return -1; // Error out of bounds
+   if (priority < 0 || priority > MAXPRIO)
+      return -1;
+   
+   struct proc * p;
+   acquire(&ptable.lock);
+  
+   // first check ready list 
+   for(int i = 0; i < MAXPRIO; ++i)
+   {
+      p = ptable.ready[i].head;
+      while(p) // gets me to the null
+      {
+	 // if pid matches, then adjust
+	 // pid to the correct ready list
+	 if (p->pid == pid)
+	 {
+	    stateListRemove(&ptable.ready[i], p); 
+	    p->budget = BUDGET;
+	    p->priority = priority;
+	    stateListAdd(&ptable.ready[p->priority], p);
+	    release(&ptable.lock);
+	    return 1;
+	 }
+	 p = p->next;
+      }
+   } 
+
+   // if not pid not found in ready list,
+   // check running list
+   p = ptable.list[RUNNING].head;
+   while(p != 0)
+   {
+      // if pid matches, then adjust
+      // pid 
+      if (p->pid == pid)  
+      {
+	 p->budget = BUDGET;
+	 p->priority = priority;
+	 release(&ptable.lock);
+	 return 1;
+      }
+      p = p->next;
+   }
+
+   // if not pid not found in ready list,
+   // or running, check sleep
+   p = ptable.list[SLEEPING].head;
+   while(p != 0)
+   {
+      // if pid matches, then adjust
+      // pid 
+      if (p->pid == pid)  
+      {
+	 p->budget = BUDGET;
+	 p->priority = priority;
+	 release(&ptable.lock);
+	 return 1;
+      }
+      p = p->next;
+   }
+   // If not pid was found in any active processes
+   release(&ptable.lock);
+   return -1; 
 }
 #endif

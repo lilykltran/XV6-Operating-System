@@ -125,6 +125,7 @@ void            yield(void);
 void procdumpP1(struct proc*, char*);
 void procdumpP2(struct proc*, char*);
 void procdumpP3(struct proc*, char*);
+void procdumpP4(struct proc*, char*);
 // proj2
 int		setuid(uint);
 int		getuid(void);
