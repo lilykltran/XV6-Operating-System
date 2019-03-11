@@ -137,7 +137,6 @@ int traverse(int);
 // proj4
 int            setpriority(int, int);
 int            getpriority(int);
-
 // swtch.S
 void            swtch(struct context**, struct context*);
 

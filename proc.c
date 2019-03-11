@@ -50,6 +50,9 @@ static int stateListRemove(struct ptrs*list, struct proc* p);
 //static void stateListAddAtHead(struct ptrs*list, struct proc* p);
 static void assertState(struct proc* p, enum procstate state);
 #endif
+#ifdef CS333_P4
+static void assertPrio(struct proc* p, int index, enum procstate state);
+#endif
 
 void
 pinit(void)
@@ -136,6 +139,21 @@ assertState(struct proc*p, enum procstate state)
   else
     return;
 }
+
+#ifdef CS333_P4
+// Makes sure state of the ready list is right, and the priority is right.
+void
+assertPrio(struct proc* p, int index, enum procstate state)
+{
+  if(p -> state != state || p->priority != index)
+  {
+    cprintf("We're in %s, we want to be in %s. We need index %d\n", states[p->state], states[state], index);
+    panic ("No match for ready list");
+  }
+  else
+    return;
+}
+#endif
 
 // Removing process p from specific list
 int
@@ -498,13 +516,14 @@ traverse(int state)
   {
      for(int i = 0; i < MAXPRIO+1; ++i)
      {
-       cprintf("MAXPRIO-%d: \n", i);
+       cprintf("MAXPRIO-%d: ", i);
        struct proc * current = ptable.ready[i].head;
        while(current)
        {
          cprintf("(%d, %d) -> ", i, current -> pid, current -> budget);
          current = current -> next;
        }
+       cprintf("\n");
      }
   } 
   #endif
@@ -941,12 +960,13 @@ scheduler(void)
     #ifdef CS333_P4
     if(ticks >= ptable.PromoteAtTime)
     {
-      for(int i = MAXPRIO-1; i >= 0; i--){
+      for(int i = MAXPRIO-1; i >= 0; --i)
+      {
         p = ptable.ready[i].head;
         while(p)
         {
           stateListRemove(&ptable.ready[i], p);   // remove from previous
-          if(p->priority > 0 && p -> priority < MAXPRIO)
+          if(p->priority >= 0)// && p -> priority < MAXPRIO)
           {
             p->priority += 1;                                            // update priority
           }
@@ -956,15 +976,19 @@ scheduler(void)
       }
 
       p = ptable.list[SLEEPING].head;
-      while(p){
-        if(p->priority > 0 && p->priority < MAXPRIO){
+      while(p)
+      {
+        if(p->priority >= 0 && p->priority < MAXPRIO)
+        {
           p->priority += 1;
         }
         p = p->next;
       }
       p = ptable.list[RUNNING].head;
-      while(p){
-        if(p->priority > 0 && p->priority < MAXPRIO){
+      while(p)
+      {
+        if(p->priority >= 0 && p->priority < MAXPRIO)
+        {
           p->priority += 1;
         }
         p = p->next;
@@ -987,7 +1011,7 @@ scheduler(void)
         int rc = stateListRemove(&ptable.ready[i], p); //Removing process p from specific list
         if(rc == -1)
           panic("The process wasn't removed form runnable state");
-        assertState(p, RUNNABLE); 
+        assertPrio(p, i, RUNNABLE); 
         p->state = RUNNING;
         stateListAdd(&ptable.list[RUNNING], p);
 #ifdef CS333_P2
@@ -1161,11 +1185,8 @@ yield(void)
   curproc->state = RUNNABLE;
   
   #ifdef CS333_P4
-  //if((int)curproc -> budget <= 0)
-  //{
-//    curproc -> budget = BUDGET;
     curproc -> budget -= (ticks - curproc -> cpu_ticks_in);
-    if(curproc -> budget <= 0)
+    if((int)curproc -> budget <= 0)
     {
       curproc -> budget = BUDGET; // Reset budget and demote
       if(curproc -> priority > 0)
@@ -1244,11 +1265,13 @@ sleep(void *chan, struct spinlock *lk)
   p->state = SLEEPING;
   #ifdef CS333_P4
   p -> budget -= (ticks - p->cpu_ticks_in);
-  if(p -> budget <= 0)
+  if((int)p -> budget <= 0)
   {
     p -> budget = BUDGET; // reset budget and demote
     if(p -> priority > 0)
+    {
       p -> priority -= 1;
+    }
   }
   #endif
   stateListAdd(&ptable.list[SLEEPING], p);
@@ -1773,14 +1796,13 @@ getprocs(uint max, struct uproc *table)
 #endif
 
 #ifdef CS333_P4
-
 // Gets the pid of an active process
 int
 getpriority(int pid)
 {
   struct proc * p;
    // first check ready list 
-  for(int i = 0; i < MAXPRIO; ++i)
+  for(int i = MAXPRIO; i >= 0; --i)
   {
     p = ptable.ready[i].head;
     while(p) // gets me to the null
@@ -1838,7 +1860,7 @@ setpriority(int pid, int priority)
    acquire(&ptable.lock);
   
    // first check ready list 
-   for(int i = 0; i < MAXPRIO; ++i)
+   for(int i = MAXPRIO; i >= 0; --i)
    {
       p = ptable.ready[i].head;
       while(p) // gets me to the null
@@ -1850,6 +1872,7 @@ setpriority(int pid, int priority)
 	    stateListRemove(&ptable.ready[i], p); 
 	    p->budget = BUDGET;
 	    p->priority = priority;
+            assertPrio(p, i, RUNNABLE);
 	    stateListAdd(&ptable.ready[p->priority], p);
 	    release(&ptable.lock);
 	    return 1;
