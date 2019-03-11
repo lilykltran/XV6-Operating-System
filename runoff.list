@@ -92,3 +92,5 @@ testsetuid.c
 testuidgid.c
 p2-test.c
 testP3.c
+p4-test.c
+p4-priority.c

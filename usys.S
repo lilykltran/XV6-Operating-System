@@ -39,3 +39,6 @@ SYSCALL(getppid)
 SYSCALL(setuid)
 SYSCALL(setgid)
 SYSCALL(getprocs)
+//proj3
+SYSCALL(getpriority)
+SYSCALL(setpriority)

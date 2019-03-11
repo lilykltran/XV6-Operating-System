@@ -26,5 +26,15 @@
 
 #define UID 0
 #define GID 0
+#define unused 0
+#define embryo 1
+#define sleeping 2
+#define runnable 3
+#define running 4
+#define zombie 5
+#define statecount NELEM(states)
+#define BUDGET 300
+#define TICKS_TO_PROMOTE 300
+#define MAXPRIO 6
 
 #endif  // PDX_INCLUDE

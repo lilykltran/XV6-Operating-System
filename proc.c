@@ -7,16 +7,6 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "uproc.h"
-#define unused 0
-#define embryo 1
-#define sleeping 2
-#define runnable 3
-#define running 4
-#define zombie 5
-#define statecount NELEM(states)
-#define BUDGET 300
-#define TICKS_TO_PROMOTE 3000
-#define MAXPRIO 6
 // Testing git
 
 static char *states[] = {
@@ -297,6 +287,7 @@ allocproc(void)
 
   #ifdef CS333_P4
   p -> budget = BUDGET;
+  p -> priority = MAXPRIO;
   #endif
 
   return p; 
@@ -402,10 +393,10 @@ userinit(void)
   stateListRemove(&ptable.list[p->state], p);
   assertState(p, EMBRYO);
   p->state = RUNNABLE;
-  //stateListAdd(&ptable.list[p->state], p); PROJECT 3
   #ifdef CS333_P4
-  p -> priority = MAXPRIO;   
   stateListAdd(&ptable.ready[p -> priority], p);
+  #else
+  stateListAdd(&ptable.list[p->state], p);
   #endif
   release(&ptable.lock);
 
@@ -601,7 +592,6 @@ fork(void)
   assertState(np, EMBRYO);
   np->state = RUNNABLE;
   #ifdef CS333_P4
-  np->priority = MAXPRIO; 
   stateListAdd(&ptable.ready[np->priority], np);
   #else
   stateListAdd(&ptable.list[RUNNABLE], np);

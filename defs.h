@@ -133,15 +133,10 @@ int             setgid(uint);
 int             getgid(void);
 int             getprocs(uint, struct uproc*);
 // proj3
-// list management function prototypes
-#ifdef CS333_P3
 int traverse(int);
-#endif
-
-#ifdef CS333_P4
+// proj4
 int            setpriority(int, int);
 int            getpriority(int);
-#endif
 
 // swtch.S
 void            swtch(struct context**, struct context*);
